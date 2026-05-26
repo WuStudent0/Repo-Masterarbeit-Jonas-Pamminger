@@ -5,8 +5,10 @@
 
 ## Research Question
 
-[Your draft research question]
+[Wie beeinflussen geopolitische Sanktionen die De-
+Internationalisierung von MNEs?]
 
 ## Hypotheses
 
-- H1: [Your hypothesis]
+- H1: [Wie beeinflussen geopolitische Sanktionen die De-
+Internationalisierung von MNEs?]
