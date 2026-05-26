@@ -1,4 +1,4 @@
-# SME Internationalization
+# Repo Masterarbeit Jonas Pamminger
 
 **Author:** Jonas Pamminger
 **Course:** ExInt II – Research Designs in SME Research, WU Vienna, SS 2026
