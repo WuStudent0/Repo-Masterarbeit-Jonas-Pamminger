@@ -45,22 +45,24 @@ QUERY = f"""
         conm,           -- company name
         fyear,          -- fiscal year
         loc,            -- country of incorporation (ISO 3)
-        sic,            -- industry code
+        sich,           -- industry code (historical SIC; Compustat Global uses 'sich', not 'sic')
         at,             -- total assets
         sale,           -- net sales
         ib,             -- income before extraordinary items (net income proxy)
-        pifo,           -- pre-tax income, foreign operations
+        fopo,           -- pre-tax income, foreign operations (Global equivalent of 'pifo')
         xrd,            -- R&D expenditure
         dltt,           -- long-term debt total
-        emp,            -- employees (thousands)
-        inco            -- year of incorporation
+        dlc,            -- debt in current liabilities
+        seq,            -- stockholders' equity
+        capx,           -- capital expenditures
+        emp             -- employees (thousands)
     FROM
         comp_global_daily.g_funda
     WHERE
         loc IN ({EUROPEAN_COUNTRIES})
         AND fyear BETWEEN 2005 AND 2020
         AND indfmt = 'INDL'
-        AND datafmt = 'STD'
+        AND datafmt = 'HIST_STD'    -- Compustat Global uses 'HIST_STD', not 'STD'
         AND popsrc = 'I'
         AND consol = 'C'
         AND at > 0

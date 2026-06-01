@@ -8,14 +8,18 @@ Output: data/processed/panel_clean.parquet
 
 Variable construction
 ---------------------
-ROA            = ib / at           (return on assets; performance)
-DOI            = pifo / sale       (foreign income share; degree of internationalization)
-DOI²           = doi ** 2          (non-linearity test, H1)
-R&D intensity  = xrd / at          (R&D expenditure / total assets; 0 if missing)
-DOI × R&D      = doi * rd_intensity (moderation term, H2)
+ROA            = ib / at             (return on assets; performance)
+DOI            = fopo / sale         (foreign income share; degree of internationalization)
+                 Note: Compustat Global uses 'fopo' (foreign pre-tax income) — not 'pifo'
+DOI²           = doi ** 2            (non-linearity test, H1)
+R&D intensity  = xrd / at            (R&D expenditure / total assets; 0 if missing)
+DOI × R&D      = doi * rd_intensity  (moderation term, H2)
 Firm size      = log(at)
-Leverage       = dltt / at
-Age            = fyear - inco
+Leverage       = (dltt + dlc) / seq  (checklist formula: long-term + current debt / equity)
+Capital intens = capx / at           (investment intensity control)
+
+Note: Compustat Global (g_funda) does not include incorporation year (inco);
+firm age control is therefore omitted.
 
 All continuous outcome variables are winsorized at 1%–99%.
 """
@@ -49,8 +53,9 @@ print(f"  After SME filter: {len(df):,} (removed {n_raw - len(df):,})")
 df["roa"] = df["ib"] / df["at"]
 
 # Degree of internationalization (DOI)
-# pifo can be negative (foreign losses) — we winsorize below
-df["doi"] = df["pifo"] / df["sale"]
+# fopo = pre-tax income from foreign operations (Compustat Global equivalent of pifo)
+# fopo can be negative (foreign losses) — we winsorize below
+df["doi"] = df["fopo"] / df["sale"]
 df["doi_sq"] = df["doi"] ** 2
 
 # R&D intensity — treat missing xrd as zero (firm did not report R&D expenditure)
@@ -61,8 +66,11 @@ df["doi_x_rd"] = df["doi"] * df["rd_intensity"]
 
 # Controls
 df["ln_at"] = np.log(df["at"])
-df["leverage"] = df["dltt"] / df["at"]
-df["age"] = (df["fyear"] - df["inco"].fillna(df["fyear"] - 10)).clip(lower=0)
+# Leverage: (long-term debt + current debt) / stockholders' equity
+df["leverage"] = (df["dltt"].fillna(0) + df["dlc"].fillna(0)) / df["seq"].replace(0, np.nan)
+# Capital intensity
+df["capex_intensity"] = df["capx"].fillna(0) / df["at"]
+# Note: firm age (fyear - inco) omitted — 'inco' not available in Compustat Global g_funda
 
 
 # ── Winsorize at 1%–99% ───────────────────────────────────────────────────────
@@ -73,7 +81,7 @@ def winsorize(series: pd.Series, lower: float = 0.01, upper: float = 0.99) -> pd
     return series.clip(lo, hi)
 
 
-for col in ["roa", "doi", "rd_intensity", "leverage"]:
+for col in ["roa", "doi", "rd_intensity", "leverage", "capex_intensity"]:
     df[col] = winsorize(df[col])
 
 # Recompute derived variables after winsorizing inputs
@@ -82,7 +90,7 @@ df["doi_x_rd"] = df["doi"] * df["rd_intensity"]
 
 
 # ── Drop Observations with Missing Core Variables ─────────────────────────────
-core_vars = ["roa", "doi", "doi_sq", "rd_intensity", "doi_x_rd", "ln_at", "leverage", "age"]
+core_vars = ["roa", "doi", "doi_sq", "rd_intensity", "doi_x_rd", "ln_at", "leverage"]
 n_before = len(df)
 df = df.dropna(subset=core_vars).copy()
 print(f"  After dropping missing core vars: {len(df):,} (removed {n_before - len(df):,})")
