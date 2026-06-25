@@ -44,12 +44,12 @@ print(f"Loaded {len(df):,} observations | {df['gvkey'].nunique():,} firms")
 
 # ── 1. Summary Statistics ─────────────────────────────────────────────────────
 VAR_LABELS = {
-    "roa":          "ROA",
-    "doi":          "DOI (foreign income share)",
-    "rd_intensity": "R&D intensity",
-    "ln_at":        "Firm size (log assets)",
-    "leverage":     "Leverage",
-    "age":          "Firm age (years)",
+    "roa":              "ROA",
+    "doi":              "DOI (foreign income share)",
+    "rd_intensity":     "R&D intensity",
+    "ln_at":            "Firm size (log assets)",
+    "leverage":         "Leverage",
+    "capex_intensity":  "CAPX intensity",
 }
 
 summary = (
@@ -98,11 +98,13 @@ axes[0].legend()
 # Reset index before assigning the tercile column — avoids pandas alignment bug
 df_plot = df.copy()
 df_plot.reset_index(drop=True, inplace=True)
-df_plot["rd_tercile"] = pd.qcut(
-    df_plot["rd_intensity"], q=3, labels=["Low R&D", "Mid R&D", "High R&D"]
+df_plot["rd_tercile"] = np.where(
+    df_plot["rd_intensity"] == 0, "No R&D",
+    np.where(df_plot["rd_intensity"] <= df_plot.loc[df_plot["rd_intensity"] > 0, "rd_intensity"].median(),
+             "Low R&D", "High R&D")
 )
 
-palette = {"Low R&D": "#2166ac", "Mid R&D": "#f4a582", "High R&D": WU_RED}
+palette = {"No R&D": "#999999", "Low R&D": "#2166ac", "High R&D": WU_RED}
 for label, group in df_plot.groupby("rd_tercile", observed=True):
     group_reset = group.reset_index(drop=True)
     bins_g = pd.cut(group_reset["doi"], bins=15)
@@ -119,11 +121,24 @@ fig.suptitle(
     fontsize=13, y=1.02, color=WU_BLUE,
 )
 fig.tight_layout()
-fig.savefig(FIGURE_PATH / "doi_roa_relationship.png", dpi=150, bbox_inches="tight")
+fig.savefig(FIGURE_PATH / "main_relationship.png", dpi=150, bbox_inches="tight")
 plt.close()
-print("Saved doi_roa_relationship.png")
+print("Saved main_relationship.png")
 
-# ── 4. Sample Composition ─────────────────────────────────────────────────────
+# ── 4. DV Distribution ────────────────────────────────────────────────────────
+fig, ax = plt.subplots(figsize=(7, 4))
+ax.hist(df["roa"], bins=60, color=WU_BLUE, edgecolor="white", alpha=0.85)
+ax.axvline(df["roa"].median(), color=WU_RED, lw=2, label=f'Median = {df["roa"].median():.3f}')
+ax.set_xlabel("RoA")
+ax.set_ylabel("Frequency")
+ax.set_title("Distribution of Dependent Variable (RoA)", color=WU_BLUE)
+ax.legend()
+fig.tight_layout()
+fig.savefig(FIGURE_PATH / "dv_distribution.png", dpi=150)
+plt.close()
+print("Saved dv_distribution.png")
+
+# ── 5. Sample Composition ─────────────────────────────────────────────────────
 fig, axes = plt.subplots(1, 2, figsize=(13, 4))
 
 country_counts = df["loc"].value_counts().head(10)

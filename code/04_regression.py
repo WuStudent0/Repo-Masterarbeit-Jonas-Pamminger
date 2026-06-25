@@ -37,11 +37,15 @@ TABLE_PATH.mkdir(parents=True, exist_ok=True)
 # ── Load & Set Panel Index ────────────────────────────────────────────────────
 # linearmodels requires a MultiIndex: (entity, time)
 df = pd.read_parquet(DATA_PATH)
+for c in df.select_dtypes(include=["Float64"]).columns:
+    df[c] = df[c].astype("float64")
+df["doi_x_size"] = df["doi"] * df["ln_at"]
+df.to_parquet(Path("data/processed/panel_with_vars.parquet"), index=False)
 df = df.set_index(["gvkey", "fyear"])
 
 print(f"Panel: {len(df):,} obs | {df.index.get_level_values('gvkey').nunique():,} firms")
 
-CONTROLS = ["ln_at", "leverage", "age"]
+CONTROLS = ["ln_at", "leverage", "capex_intensity", "rd_intensity"]
 
 
 # ── Helper: two-way FE regression ────────────────────────────────────────────
@@ -64,20 +68,17 @@ def run_fe(dep: str, indep: list[str]) -> object:
 # ── Estimate three models ─────────────────────────────────────────────────────
 print("\nEstimating models...")
 res1 = run_fe("roa", ["doi"])
-print("  Model 1 (baseline) done")
+print("  Model 1 (baseline TWFE) done")
 
-res2 = run_fe("roa", ["doi", "doi_sq"])
-print("  Model 2 (H1: non-linearity) done")
-
-res3 = run_fe("roa", ["doi", "doi_sq", "rd_intensity", "doi_x_rd"])
-print("  Model 3 (H2: moderation) done")
+res2 = run_fe("roa", ["doi", "doi_x_size"])
+print("  Model 2 (H2: size moderation) done")
 
 
 # ── Build Results Table ───────────────────────────────────────────────────────
-KEY_VARS = ["doi", "doi_sq", "rd_intensity", "doi_x_rd"] + CONTROLS
+KEY_VARS = ["doi", "doi_x_size"] + CONTROLS
 
-model_labels = ["(1) Baseline", "(2) H1: Nonlinearity", "(3) H2: Moderation"]
-models = [res1, res2, res3]
+model_labels = ["(1) TWFE Baseline", "(2) TWFE + H2 Moderation"]
+models = [res1, res2]
 
 rows = []
 for label, res in zip(model_labels, models):
@@ -104,36 +105,28 @@ results_df.to_csv(TABLE_PATH / "regression_results.csv")
 print(f"\nSaved regression_results.csv")
 
 
-# ── H1: Inflection Point ──────────────────────────────────────────────────────
+# ── H1 Diagnostic ─────────────────────────────────────────────────────────────
 print("\n--- H1 Diagnostic ---")
-if "doi" in res2.params.index and "doi_sq" in res2.params.index:
-    b1 = res2.params["doi"]
-    b2 = res2.params["doi_sq"]
-    if b2 < 0:
-        inflection = -b1 / (2 * b2)
-        sample_mean_doi = df["doi"].mean()
-        print(f"  β(DOI)  = {b1:.3f}   β(DOI²) = {b2:.3f}")
-        print(f"  → Inverted U-shape confirmed (β₂ < 0)")
-        print(f"  → Performance-maximizing DOI = {inflection:.3f}")
-        print(f"  → Sample mean DOI            = {sample_mean_doi:.3f}")
-        if inflection > sample_mean_doi:
-            print("  → Most firms are still on the upward slope of the curve")
-        else:
-            print("  → Most firms are past the performance-maximizing DOI threshold")
-    else:
-        print(f"  β(DOI²) = {b2:.3f} > 0 → U-shape (not inverted) → H1 not supported")
+b_doi = res1.params["doi"]
+p_doi = res1.pvalues["doi"]
+stars_h1 = "***" if p_doi < 0.01 else "**" if p_doi < 0.05 else "*" if p_doi < 0.1 else "(n.s.)"
+print(f"  beta(DOI) = {b_doi:.4f} {stars_h1}  (p = {p_doi:.4f})")
+if b_doi < 0 and p_doi < 0.05:
+    print("  H1 supported: DOI negatively affects RoA")
+else:
+    print("  H1 not supported at conventional significance levels")
 
-# ── H2: Moderation ────────────────────────────────────────────────────────────
+# ── H2 Diagnostic ─────────────────────────────────────────────────────────────
 print("\n--- H2 Diagnostic ---")
-if "doi_x_rd" in res3.params.index:
-    b_mod = res3.params["doi_x_rd"]
-    p_mod = res3.pvalues["doi_x_rd"]
-    stars = "***" if p_mod < 0.01 else "**" if p_mod < 0.05 else "*" if p_mod < 0.1 else "(n.s.)"
-    print(f"  β(DOI × R&D) = {b_mod:.3f} {stars}  (p = {p_mod:.3f})")
+if "doi_x_size" in res2.params.index:
+    b_mod = res2.params["doi_x_size"]
+    p_mod = res2.pvalues["doi_x_size"]
+    stars_h2 = "***" if p_mod < 0.01 else "**" if p_mod < 0.05 else "*" if p_mod < 0.1 else "(n.s.)"
+    print(f"  beta(DOI x Size) = {b_mod:.4f} {stars_h2}  (p = {p_mod:.4f})")
     if b_mod > 0 and p_mod < 0.1:
-        print("  → H2 supported: R&D intensity positively moderates DOI–performance")
+        print("  H2 supported: firm size positively moderates DOI-performance")
     else:
-        print("  → H2 not supported at conventional significance levels")
+        print("  H2 not supported at conventional significance levels")
 
 print("""
 ─────────────────────────────────────────────────────────────

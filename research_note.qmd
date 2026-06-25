@@ -15,7 +15,7 @@ format:
     colorlinks: true
     cite-method: citeproc
 bibliography: references/library.bib
-csl: https://raw.githubusercontent.com/citation-style-language/styles/master/ieee.csl
+csl: references/apa.csl
 jupyter: sme-internationalization
 execute:
   echo: false

@@ -10,5 +10,20 @@ tasks:
     cmds:
       - python code/02_clean.py
 
-  all:
+  descriptives:
     deps: [clean]
+    cmds:
+      - python code/03_descriptives.py
+
+  regression:
+    deps: [descriptives]
+    cmds:
+      - python code/04_regression.py
+
+  render:
+    deps: [regression]
+    cmds:
+      - quarto render research_note.qmd
+
+  all:
+    deps: [render]
