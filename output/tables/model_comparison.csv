@@ -1,0 +1,6 @@
+Model,AIC,Outcome
+Logit,548.9113376000789,Binary
+Poisson,4319.066373190775,Count
+NegBin,2857.5411686850084,Count (OD)
+Multinomial,933.6795566681978,Categorical
+Ordinal,561.6618367782322,Ordered

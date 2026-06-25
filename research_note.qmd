@@ -1,0 +1,299 @@
+---
+title: "Internationalization and Firm Performance among European SMEs"
+subtitle: "A Panel Data Analysis"
+author: "Jonas Pamminger | ExInt II | WU Vienna | SS 2026 | [github.com/WuStudent0/Repo-Masterarbeit-Jonas-Pamminger](https://github.com/WuStudent0/Repo-Masterarbeit-Jonas-Pamminger)"
+date: "2026-06-25"
+format:
+  pdf:
+    documentclass: article
+    papersize: a4
+    fontsize: 11pt
+    geometry:
+      - margin=2.5cm
+    number-sections: true
+    toc: false
+    colorlinks: true
+    cite-method: citeproc
+bibliography: references/library.bib
+csl: https://raw.githubusercontent.com/citation-style-language/styles/master/ieee.csl
+jupyter: sme-internationalization
+execute:
+  echo: false
+  warning: false
+---
+
+```{python}
+#| label: setup
+#| include: false
+
+import warnings
+warnings.filterwarnings("ignore")
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import statsmodels.api as sm
+from linearmodels.panel import PanelOLS
+
+plt.style.use("seaborn-v0_8-whitegrid")
+plt.rcParams.update({"figure.dpi": 150, "font.size": 9})
+
+df = pd.read_parquet("data/processed/panel_clean.parquet")
+for c in df.select_dtypes(include=["Float64"]).columns:
+    df[c] = df[c].astype("float64")
+
+df["doi_x_size"] = df["doi"] * df["ln_at"]
+```
+
+# Introduction
+
+Internationalization is a defining strategic decision for small and medium-sized enterprises (SMEs) seeking growth beyond domestic markets. A substantial body of theoretical and empirical work establishes that geographic diversification can generate scale economies, access to foreign knowledge, and risk spreading across institutional environments [@dunning1980eclectic; @johanson1977internationalization; @hitt1997international]. Yet this long-run optimism coexists with a striking short-run empirical regularity: firms expanding internationally incur substantial coordination costs, face the liability of foreignness, and must navigate unfamiliar institutional environments — creating a drag on current-period accounting performance that can mask the underlying strategic value being created [@zaheer1995overcoming; @lu2001internationalization].
+
+The tension between these two forces — internationalization as a source of durable advantage and foreign operations as a short-run cost burden — is particularly acute for SMEs. Unlike large multinationals that possess dedicated international divisions, diversified revenue streams, and deep managerial bench strength, SMEs typically lack the organisational infrastructure and financial slack to absorb the overhead of international operations without consequence for current-period earnings [@lu2001internationalization; @contractor2003curvilinear].
+
+The existing literature on internationalization and firm performance among European SMEs is characterised by two important gaps. First, the causal identification of the performance effect is typically confounded by unobserved firm heterogeneity: firms that internationalise also differ systematically in management quality, strategic orientation, and industry positioning — characteristics that independently affect performance [@hausman1978specification]. Second, the boundary conditions of the internationalization–performance relationship remain insufficiently theorised. In particular, whether firm size — which governs the resource base available to manage international operations — meaningfully moderates the performance effect has received limited systematic attention in European SME samples [@cohen1990absorptive; @contractor2003curvilinear].
+
+This research note addresses both gaps using a panel of European SMEs drawn from Compustat Global over fiscal years 2005–2020. Employing two-way fixed effects (TWFE) estimation with firm- and year-level controls, we ask two related questions: does the degree of internationalization (DOI) exert a negative effect on current-period return on assets (RoA); and does firm size moderate this relationship by enabling larger SMEs to manage international operations more efficiently?
+
+**Research question:** Does the degree of internationalization affect firm performance among European SMEs, and does firm size moderate this relationship?
+
+# Theoretical Background and Hypotheses
+
+## Internationalization and Firm Performance
+
+The Uppsala model [@johanson1977internationalization] conceptualises internationalization as an incremental process driven by experiential learning: firms gradually increase their foreign market commitment as they accumulate knowledge about host-country markets, institutions, and business practices. While this perspective emphasises the long-run benefits of international experience, it also implies that firms in the early and intermediate stages of internationalization bear disproportionate costs relative to the knowledge they have accumulated.
+
+The eclectic (OLI) paradigm [@dunning1980eclectic; @dunning2001eclectic] provides a complementary lens. Internationalization is value-creating when firms simultaneously possess ownership advantages (firm-specific competitive assets), can access location advantages (host-country factors), and benefit from internalising transactions within the firm hierarchy rather than relying on external markets. For SMEs, however, the ownership advantages that sustain profitable internationalization — managerial expertise, proprietary technology, brand recognition — are often limited, while the costs of internalising foreign operations are proportionally higher than for large multinationals [@buckley1976future; @rugman2008internalization].
+
+The liability of foreignness framework [@zaheer1995overcoming; @kostova1999legitimacy] identifies the specific cost mechanisms that depress performance during internationalization. Foreign firms face higher coordination costs, information asymmetries, and legitimacy deficits relative to domestic incumbents. For European SMEs operating across diverse institutional environments — spanning common-law, civil-law, and transition-economy contexts — these costs are compounded by regulatory heterogeneity and cultural distance.
+
+Together, these theoretical perspectives converge on a clear prediction for the short-run performance effect of internationalization among resource-constrained SMEs.
+
+**H1:** The degree of internationalization negatively affects current-period RoA among European SMEs, reflecting the coordination costs and liability of foreignness associated with international operations.
+
+*Test:* $\beta(\text{doi}) < 0$ and statistically significant
+
+## The Moderating Role of Firm Size
+
+The absorptive capacity framework [@cohen1990absorptive] provides a theoretical basis for expecting firm size to moderate the internationalization–performance relationship. Absorptive capacity — the ability to recognise, assimilate, and exploit new knowledge — is a function of prior cumulative investment in knowledge-generating activities and the breadth of a firm's human capital base. Larger SMEs, by virtue of their more extensive employee base, more differentiated functional expertise, and greater financial slack, are better positioned to manage international operations without sustaining disproportionate performance losses [@lu2001internationalization].
+
+The mechanism operates through two channels. First, a *scale effect*: larger SMEs can spread the fixed costs of international operations — legal compliance, market intelligence, logistics infrastructure — over a larger asset and revenue base, reducing the per-unit earnings impact of any given level of internationalization. Second, a *complementarity effect*: larger SMEs possess more developed downstream capabilities in production, marketing, and distribution that amplify the speed with which international expansion translates into revenues, shortening the effective lag between foreign market entry and performance payoff [@contractor2003curvilinear; @hitt1997international].
+
+**H2:** Firm size positively moderates the DOI–RoA relationship — larger SMEs experience a smaller performance penalty from internationalization than their smaller counterparts.
+
+*Test:* $\beta(\text{doi} \times \text{ln\_at}) > 0$
+
+# Data and Method
+
+## Sample
+
+The empirical analysis draws on annual firm-level data from the WRDS Compustat Global database (`comp_global_daily.g_funda`), which provides standardised financial statement data for listed firms in over 80 countries. The sample is restricted to firms incorporated in 23 European countries that satisfy the EU SME definition of either fewer than 250 employees or total assets not exceeding EUR 43 million, over fiscal years 2005–2020. We require positive total assets and positive sales, and a minimum of three firm-year observations to support within-firm identification. All continuous variables except the logarithmic size measure are winsorized at the 1st and 99th percentiles to mitigate extreme outliers [@white1980heteroskedasticity]. The resulting unbalanced panel comprises 29,344 firm-years from 3,843 unique firms across 23 European countries.
+
+## Variables
+
+**Dependent variable.** Firm performance is operationalised as return on assets (RoA), calculated as income before extraordinary items divided by total assets (`ib / at`). RoA is the most widely used accounting-based performance measure in the SME panel-data literature, providing a scale-invariant assessment of asset productivity [@lu2001internationalization].
+
+**Independent variable.** The degree of internationalization (DOI) is measured as pre-tax income from foreign operations divided by total sales (`fopo / sale`). This captures the extent to which a firm's earnings are generated outside its home market. Approximately 95% of firm-years in the final sample have non-zero DOI values.
+
+**Moderator.** Firm size is measured as the natural logarithm of total assets (`log(at)`), consistent with the standard transformation for right-skewed size distributions [@lu2001internationalization].
+
+**Control variables.** We include three time-varying controls. Leverage (`(dltt + dlc) / seq`) captures capital structure effects on profitability. Capital expenditure intensity (`capx / at`) controls for tangible investment that may independently shape RoA. R&D intensity (`xrd / at`, with missing values set to zero) proxies for innovation investment that correlates with both internationalization and performance [@cohen1990absorptive]. @tbl-variables provides a complete variable overview.
+
+```{python}
+#| label: tbl-variables
+#| tbl-cap: "Variable definitions and data sources."
+
+var_df = pd.DataFrame({
+    "Variable": ["RoA", "DOI", "DOI x Size", "Firm size", "Leverage",
+                  "CAPX intensity", "R&D intensity"],
+    "Field(s)": ["ib, at", "fopo, sale", "---", "at", "dltt, dlc, seq",
+                  "capx, at", "xrd, at"],
+    "Formula": ["ib / at", "fopo / sale", "doi x ln_at", "log(at)",
+                 "(dltt+dlc) / seq", "capx / at", "xrd.fillna(0) / at"],
+    "Role": ["Dependent (Y)", "Independent (X)", "H2 interaction",
+             "Moderator + Control", "Control", "Control", "Control"]
+})
+
+print(var_df.to_markdown(index=False))
+```
+
+## Estimation Strategy
+
+We estimate a two-way fixed effects (TWFE) panel model of the form:
+
+$$\text{RoA}_{it} = \beta_1 \text{DOI}_{it} + \beta_2 (\text{DOI} \times \text{Size})_{it} + \gamma X_{it} + \mu_i + \lambda_t + \varepsilon_{it}$$
+
+where $\mu_i$ are firm fixed effects absorbing all time-invariant firm-level heterogeneity — including country, industry, management quality, and organisational culture — and $\lambda_t$ are year fixed effects absorbing common macroeconomic shocks. Standard errors are clustered at the firm level to account for within-firm serial correlation [@petersen2009estimating]. The choice of fixed over random effects is supported by the divergence between OLS and FE estimates, consistent with correlation between firm-level unobservables and DOI [@hausman1978specification]. All analyses use the `linearmodels` Python package [@trisovic2022large].
+
+# Results
+
+## Descriptive Statistics
+
+```{python}
+#| label: tbl-descriptives
+#| tbl-cap: "Descriptive statistics. Continuous variables winsorized at 1st-99th percentiles."
+
+desc_cols = ["roa", "doi", "rd_intensity", "ln_at", "leverage", "capex_intensity"]
+labels = {"roa": "RoA", "doi": "DOI", "rd_intensity": "R&D Intensity",
+          "ln_at": "Firm Size (log)", "leverage": "Leverage",
+          "capex_intensity": "CAPX Intensity"}
+
+desc = df[desc_cols].describe().T[["count", "mean", "std", "min", "50%", "max"]]
+desc.columns = ["N", "mean", "std", "min", "Median", "max"]
+desc.index = [labels[c] for c in desc_cols]
+desc["N"] = desc["N"].astype(int)
+
+for c in ["mean", "std", "min", "Median", "max"]:
+    desc[c] = desc[c].map(lambda x: f"{x:.3f}")
+
+print(desc.to_markdown())
+```
+
+@tbl-descriptives presents descriptive statistics for all research variables. The distribution of RoA exhibits the characteristic left-skew observed in SME panel data: the median is close to zero while the mean is pulled below by loss-making firms. The DOI distribution has a mean of 0.337, with approximately 67% of firm-years showing positive foreign income and 28% showing negative foreign income (losses from foreign operations). The correlation matrix (@fig-corr) reveals a negative raw correlation between DOI and RoA, providing preliminary descriptive support for H1.
+
+```{python}
+#| label: fig-scatter
+#| fig-cap: "DOI versus RoA for firms with non-zero DOI (left panel, with bin means in red) and median RoA by firm size for firms with and without foreign operations (right panel)."
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))
+
+active = df[df["doi"] != 0].copy()
+ax1.scatter(active["doi"], active["roa"], alpha=0.03, s=3, color="steelblue")
+bins = pd.cut(active["doi"], bins=20)
+bin_means = active.groupby(bins, observed=True)["roa"].mean()
+bin_centers = [(b.left + b.right) / 2 for b in bin_means.index]
+ax1.scatter(bin_centers, bin_means.values, color="red", s=40, zorder=5, label="Bin means")
+ax1.set_xlabel("DOI (foreign income / sales)")
+ax1.set_ylabel("RoA")
+ax1.set_title("DOI vs RoA (active firms)")
+ax1.set_xlim(-2, 3)
+ax1.set_ylim(-1.5, 1)
+ax1.legend()
+
+df_plot = df.copy()
+df_plot["has_foreign"] = np.where(df_plot["doi"] != 0, "With foreign ops", "Domestic only")
+df_plot["size_q"] = pd.qcut(df_plot["ln_at"], 5, labels=["Q1\n(smallest)", "Q2", "Q3", "Q4", "Q5\n(largest)"])
+medians = df_plot.groupby(["size_q", "has_foreign"], observed=True)["roa"].median().unstack()
+medians.plot(kind="bar", ax=ax2, color=["steelblue", "coral"])
+ax2.set_xlabel("Firm Size Quintile")
+ax2.set_ylabel("Median RoA")
+ax2.set_title("RoA by Size: Foreign vs Domestic")
+ax2.legend(title="")
+ax2.tick_params(axis="x", rotation=0)
+
+plt.tight_layout()
+plt.savefig("output/fig_scatter.png", dpi=150, bbox_inches="tight")
+plt.show()
+```
+
+```{python}
+#| label: fig-corr
+#| fig-cap: "Pairwise correlation matrix for research variables."
+
+corr_cols = ["roa", "doi", "rd_intensity", "ln_at", "leverage", "capex_intensity"]
+corr_labels = ["RoA", "DOI", "R&D Int.", "Firm Size", "Leverage", "CAPX Int."]
+
+corr = df[corr_cols].corr()
+corr.index = corr_labels
+corr.columns = corr_labels
+
+fig, ax = plt.subplots(figsize=(6, 5))
+mask = np.triu(np.ones_like(corr, dtype=bool), k=1)
+sns.heatmap(corr, mask=mask, annot=True, fmt=".2f", cmap="RdBu_r",
+            center=0, vmin=-1, vmax=1, square=True, linewidths=0.5, ax=ax)
+ax.set_title("Correlation Matrix")
+plt.tight_layout()
+plt.savefig("output/fig_corr.png", dpi=150, bbox_inches="tight")
+plt.show()
+```
+
+## Regression Results
+
+```{python}
+#| label: tbl-regression
+#| tbl-cap: "Panel regression results. Dependent variable: RoA. Standard errors in parentheses, clustered at firm level in Models (2)-(3). * p<0.10, ** p<0.05, *** p<0.01."
+
+panel = df.set_index(["gvkey", "fyear"])
+
+y = panel["roa"]
+X_ols = sm.add_constant(panel[["doi", "ln_at", "leverage", "capex_intensity", "rd_intensity"]])
+m1 = sm.OLS(y, X_ols).fit(cov_type="HC1")
+
+exog2 = panel[["doi", "ln_at", "leverage", "capex_intensity", "rd_intensity"]]
+m2 = PanelOLS(panel["roa"], exog2, entity_effects=True, time_effects=True).fit(
+    cov_type="clustered", cluster_entity=True)
+
+exog3 = panel[["doi", "doi_x_size", "ln_at", "leverage", "capex_intensity", "rd_intensity"]]
+m3 = PanelOLS(panel["roa"], exog3, entity_effects=True, time_effects=True).fit(
+    cov_type="clustered", cluster_entity=True)
+
+def stars(p):
+    if p < 0.01: return "***"
+    elif p < 0.05: return "**"
+    elif p < 0.10: return "*"
+    return ""
+
+def fmt(coef, se, pval):
+    return f"{coef:.4f}{stars(pval)}", f"({se:.4f})"
+
+vars_order = ["doi", "doi_x_size", "ln_at", "leverage", "capex_intensity", "rd_intensity"]
+var_labels = {"doi": "doi", "doi_x_size": "doi_x_size", "ln_at": "ln_at",
+              "leverage": "leverage", "capex_intensity": "capx_intensity",
+              "rd_intensity": "rd_intensity"}
+
+rows = []
+for v in vars_order:
+    row_coef = [var_labels[v]]
+    row_se = [""]
+    for m_obj, is_ols in [(m1, True), (m2, False), (m3, False)]:
+        if is_ols:
+            params, ses, pvals = m_obj.params, m_obj.bse, m_obj.pvalues
+        else:
+            params, ses, pvals = m_obj.params, m_obj.std_errors, m_obj.pvalues
+        if v in params.index:
+            c, s = fmt(params[v], ses[v], pvals[v])
+            row_coef.append(c)
+            row_se.append(s)
+        else:
+            row_coef.append("")
+            row_se.append("")
+    rows.append(row_coef)
+    rows.append(row_se)
+
+rows.append(["Firm FE", "No", "Yes", "Yes"])
+rows.append(["Year FE", "No", "Yes", "Yes"])
+rows.append(["Clustered SE", "No", "Yes", "Yes"])
+rows.append(["N", f"{int(m1.nobs):,}", f"{int(m2.nobs):,}", f"{int(m3.nobs):,}"])
+rows.append(["R-squared", f"{m1.rsquared:.3f}", f"{m2.rsquared_within:.3f}", f"{m3.rsquared_within:.3f}"])
+
+header = ["Variable", "(1) OLS", "(2) TWFE", "(3) TWFE+H2"]
+result_df = pd.DataFrame(rows, columns=header)
+print(result_df.to_markdown(index=False))
+```
+
+@tbl-regression presents results from three specifications: pooled OLS with heteroskedasticity-robust standard errors (Model 1), two-way fixed effects with firm-clustered standard errors (Model 2), and the TWFE specification augmented with the DOI x firm size interaction term (Model 3).
+
+**H1 --- DOI and RoA.** DOI enters with a negative and statistically significant coefficient across all three specifications. The main TWFE estimate (Model 2) is $\hat{\beta}_1 = -0.029$ (p < 0.01), indicating that a one-unit increase in DOI is associated with a reduction in within-firm RoA of approximately 0.029 units in the same fiscal year, holding all other covariates constant. **H1 is supported.** This finding is consistent with the liability of foreignness mechanism [@zaheer1995overcoming]: the costs of coordinating foreign operations --- regulatory compliance, cultural adaptation, information asymmetry --- reduce short-run accounting profitability for European SMEs.
+
+The comparison between the OLS estimate ($\hat{\beta}_1^{\text{OLS}} = -0.039$) and the TWFE estimate is instructive. The OLS coefficient exceeds the TWFE coefficient in absolute magnitude by approximately 33%, consistent with the presence of omitted variable bias in the cross-sectional estimator. The direction of the bias is theoretically expected: firms with unobservably stronger international capabilities invest more in foreign operations and simultaneously achieve higher performance, which attenuates the measured negative association in the pooled cross-section. The fixed effects estimator eliminates this confound by exploiting only within-firm variation over time [@hausman1978specification].
+
+**H2 --- Firm size as moderator.** The interaction term between DOI and the logarithm of total assets (Model 3) carries a positive and statistically significant coefficient ($\hat{\beta}_2 = 0.008$, p < 0.01). **H2 is supported.** This indicates that larger SMEs experience a significantly smaller performance penalty from internationalization than their smaller counterparts. Evaluated at the mean firm size (ln_at = 2.96), the marginal effect of DOI on RoA is $-0.050 + 0.008 \times 2.96 = -0.027$, while for firms one standard deviation above the mean (ln_at = 4.48), the marginal effect is $-0.050 + 0.008 \times 4.48 = -0.014$ --- approximately half the penalty faced by the average firm. This is consistent with the absorptive capacity mechanism: larger SMEs possess the organisational infrastructure to spread the fixed costs of internationalization and to convert foreign market presence into revenue more efficiently [@cohen1990absorptive; @contractor2003curvilinear].
+
+# Discussion and Conclusion
+
+## Discussion
+
+The central finding of this research note --- that DOI exerts a negative and statistically robust effect on current-period RoA among European SMEs --- warrants careful theoretical interpretation. The result does not imply that internationalization destroys value; rather, it reflects the temporal mismatch between the costs incurred during international expansion and the benefits that accrue over longer horizons. The Uppsala model [@johanson1977internationalization] predicts precisely this pattern: firms in the process of building foreign market knowledge bear disproportionate coordination and learning costs that diminish as experiential knowledge accumulates.
+
+The significant positive moderation by firm size extends this interpretation in an important direction. Larger SMEs --- those with more extensive human capital, more diversified functional capabilities, and greater financial slack --- are better equipped to absorb the short-run costs of internationalization without proportional performance degradation. This finding aligns with the absorptive capacity framework [@cohen1990absorptive] and with empirical evidence on the three-stage internationalization--performance curve [@contractor2003curvilinear], which predicts that the negative performance phase of early internationalization is shorter and shallower for firms with stronger resource endowments.
+
+The policy implication is substantive. If the short-run performance penalty associated with internationalization is visible to investors and lenders who rely on accounting-based metrics, it may create a systematic bias against international expansion among SMEs operating under profitability pressure. Public support programmes --- export credit agencies, trade facilitation initiatives, and EU structural funds targeted at SME internationalization --- may partially offset this deterrent by reducing the immediate cost burden of foreign market entry.
+
+## Conclusion
+
+This research note examines the short-run effect of internationalization on firm performance among European SMEs using a panel of 29,344 firm-years from 3,843 firms across 23 European countries over 2005--2020. The evidence strongly supports H1: within the same firm, years characterised by higher DOI are associated with significantly lower RoA ($\hat{\beta} = -0.029$, p < 0.01), with the magnitude of the effect attenuated by 33% relative to the naive OLS estimate once firm fixed effects are controlled. H2 is also supported: firm size positively and significantly moderates this relationship ($\hat{\beta}_2 = 0.008$, p < 0.01), indicating that larger SMEs face approximately half the performance penalty of their smaller counterparts.
+
+Three limitations bound the scope of these conclusions. First, DOI measured as foreign income share captures only one dimension of internationalization; alternative measures based on foreign assets or foreign sales share may yield different results. Second, the 16-year observation window may not span the full payoff cycle of internationalization; a specification with lagged DOI would provide a more complete picture. Third, Compustat Global coverage skews toward listed firms; generalisation to the private SME population requires caution. Future research could address these limitations by exploiting quasi-experimental variation in EU Single Market policies or trade agreements as instruments for internationalization intensity.
+
+# References
